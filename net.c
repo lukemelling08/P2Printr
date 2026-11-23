@@ -5,6 +5,7 @@
 #include "net.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -76,4 +77,19 @@ int net_connect(const char *ip, const int port) {
     }
 
     return fd;
+}
+
+int net_send_line(const int fd, const char *line) {
+    const size_t len = strlen(line);
+    size_t sent = 0;
+
+    while (sent < len) {
+        const ssize_t n = send(fd, line + sent, len - sent, 0);
+        if (n < 0) {
+            perror("send");
+            return -1;
+        }
+        sent += (size_t) n;
+    }
+    return 0;
 }

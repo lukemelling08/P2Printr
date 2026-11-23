@@ -12,7 +12,14 @@ int main(int argc, char *argv[]) {
         if (fd < 0) {
             return 1;
         }
-        printf("connected! fd: %d\n", fd);
+        printf("connected! type messages (Ctrl-D to quit)\n");
+
+        char line[256];
+        while (fgets(line, sizeof line, stdin) != NULL) {
+            if (net_send_line(fd, line) < 0) {
+                break;
+            }
+        }
         close(fd);
         return 0;
     }
@@ -31,12 +38,13 @@ int main(int argc, char *argv[]) {
     printf("someone connected! fd: %d\n", client_fd);
 
     char buf[256];
-    ssize_t n = recv(client_fd, buf, sizeof buf - 1, 0);
-    if (n < 0) {
-        perror("recv");
-    } else {
+    ssize_t n;
+    while ((n = recv(client_fd, buf, sizeof buf - 1, 0)) > 0) {
         buf[n] = '\0';
         printf("received: %s", buf);
+    }
+    if (n < 0) {
+        perror("recv");
     }
 
     close(client_fd);
