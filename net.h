@@ -5,4 +5,6 @@
 #ifndef P2PRINTR_NET_H
 #define P2PRINTR_NET_H
 
+int net_listen(void);
+
 #endif //P2PRINTR_NET_H
