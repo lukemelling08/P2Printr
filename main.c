@@ -1,11 +1,22 @@
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 
 #include "net.h"
 
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    if (argc > 1 && strcmp(argv[1], "connect") == 0) {
+        int fd = net_connect("127.0.0.1", 5000);
+        if (fd < 0) {
+            return 1;
+        }
+        printf("connected! fd: %d\n", fd);
+        close(fd);
+        return 0;
+    }
+
     int fd = net_listen(5000);
     if (fd < 0) {
         return 1;

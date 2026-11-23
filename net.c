@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
 int net_listen(const int port) {
     const int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -49,5 +50,30 @@ int net_accept(const int listen_fd) {
         perror("accept");
         return -1;
     }
+    return fd;
+}
+
+int net_connect(const char *ip, const int port) {
+    const int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        perror("socket");
+        return -1;
+    }
+
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1) {
+        fprintf(stderr, "invalid IP: %s\n", ip);
+        close(fd);
+        return -1;
+    }
+
+    if (connect(fd, (struct sockaddr *) &addr, sizeof addr) < 0) {
+        perror("connect");
+        close(fd);
+        return -1;
+    }
+
     return fd;
 }
