@@ -5,6 +5,7 @@
 #include <poll.h>
 #include <signal.h>
 
+#include "chat.h"
 #include "net.h"
 
 static void chat_loop(const int fd) {
@@ -13,6 +14,9 @@ static void chat_loop(const int fd) {
         {.fd = fd, .events = POLLIN},
     };
     char buf[256];
+
+    LineBuffer lb = {0};
+    char line[LINE_MAX_LEN];
 
     while (1) {
         if (poll(fds, 2, -1) < 0) {
@@ -30,13 +34,19 @@ static void chat_loop(const int fd) {
         }
 
         if (fds[1].revents & (POLLIN | POLLHUP)) {
-            const ssize_t n = recv(fd, buf, sizeof buf - 1, 0);
+            if (lb.len == sizeof lb.data) {
+                lb.len = 0;
+            }
+            const ssize_t n = recv(fd, lb.data + lb.len, sizeof lb.data - lb.len, 0);
             if (n <= 0) {
                 printf("they disconnected\n");
                 return;
             }
-            buf[n] = '\0';
-            printf("them: %s", buf);
+            lb.len += (size_t) n;
+
+            while (chat_take_line(&lb, line, sizeof line)) {
+                printf("them: %s\n", line);
+            }
         }
     }
 }
