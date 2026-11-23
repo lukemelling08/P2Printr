@@ -7,8 +7,61 @@
 
 #include "chat.h"
 #include "net.h"
+#include "protocol.h"
 
-static void chat_loop(const int fd) {
+static const char *after_prefix(const char *line, const char *prefix) {
+    const size_t n = strlen(prefix);
+    return strncmp(line, prefix, n) == 0 ? line + n : NULL;
+}
+
+static int handle_line(const char *line, ChatState *state) {
+    const char *rest;
+
+    if (*state == CHAT_WAITING_REQUEST && ((rest = after_prefix(line, CMD_REQUEST " ")))) {
+        printf("%s wants to chat. type accept or decline\n", rest);
+        *state = CHAT_INCOMING;
+    } else if (*state == CHAT_OUTGOING && strcmp(line, CMD_ACCEPT) == 0) {
+        printf("chat accepted!\n");
+        *state = CHAT_ACTIVE;
+    } else if (*state == CHAT_OUTGOING && strcmp(line, CMD_DECLINE) == 0) {
+        printf("they declined\n");
+        return -1;
+    } else if (*state == CHAT_ACTIVE && (rest = after_prefix(line, CMD_MSG " "))) {
+        printf("them: %s\n", rest);
+    } else if (strcmp(line, CMD_BYE) == 0) {
+        printf("they left the chat\n");
+        return -1;
+    }
+    return 0;
+}
+
+static int handle_input(const int fd, char *input, ChatState *state) {
+    input[strcspn(input, "\n")] = '\0';
+
+    if (*state == CHAT_INCOMING && strcmp(input, "accept") == 0) {
+        printf("chat started!\n");
+        *state = CHAT_ACTIVE;
+        return net_send_line(fd, CMD_ACCEPT "\n");
+    }
+    if (*state == CHAT_INCOMING && strcmp(input, "decline") == 0) {
+        net_send_line(fd, CMD_DECLINE "\n");
+        return -1;
+    }
+    if (*state == CHAT_ACTIVE) {
+        if (strcmp(input, "/close") == 0) {
+            net_send_line(fd, CMD_BYE "\n");
+            return -1;
+        }
+        char msg[LINE_MAX_LEN];
+        snprintf(msg, sizeof msg, CMD_MSG " %s\n", input);
+        return net_send_line(fd, msg);
+    }
+
+    printf("can't do that right now\n");
+    return 0;
+}
+
+static void chat_loop(const int fd, ChatState state) {
     struct pollfd fds[2] = {
         {.fd = STDIN_FILENO, .events = POLLIN},
         {.fd = fd, .events = POLLIN},
@@ -28,7 +81,7 @@ static void chat_loop(const int fd) {
             if (fgets(buf, sizeof buf, stdin) == NULL) {
                 return;
             }
-            if (net_send_line(fd, buf) < 0) {
+            if (handle_input(fd, buf, &state) < 0) {
                 return;
             }
         }
@@ -45,7 +98,9 @@ static void chat_loop(const int fd) {
             lb.len += (size_t) n;
 
             while (chat_take_line(&lb, line, sizeof line)) {
-                printf("them: %s\n", line);
+                if (handle_line(line, &state) < 0) {
+                    return;
+                }
             }
         }
     }
@@ -60,7 +115,11 @@ int main(int argc, char *argv[]) {
         }
         printf("connected! type messages (Ctrl-D to quit)\n");
 
-        chat_loop(fd);
+        if (net_send_line(fd, CMD_REQUEST " luke\n") < 0) {
+            close(fd);
+            return 1;
+        }
+        chat_loop(fd, CHAT_OUTGOING);
         close(fd);
         return 0;
     }
@@ -78,7 +137,7 @@ int main(int argc, char *argv[]) {
     }
     printf("someone connected! fd: %d\n", client_fd);
 
-    chat_loop(client_fd);
+    chat_loop(client_fd, CHAT_WAITING_REQUEST);
 
     close(client_fd);
     close(fd);

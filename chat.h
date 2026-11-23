@@ -14,6 +14,14 @@ typedef struct {
     size_t len;
 } LineBuffer;
 
+typedef enum {
+    CHAT_NONE,
+    CHAT_WAITING_REQUEST,
+    CHAT_INCOMING,
+    CHAT_OUTGOING,
+    CHAT_ACTIVE
+} ChatState;
+
 int chat_take_line(LineBuffer *lb, char *out, size_t out_size);
 
 #endif //P2PRINTR_CHAT_H
